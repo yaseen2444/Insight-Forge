@@ -5,17 +5,24 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objs as go
-from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.impute import SimpleImputer
 from sklearn.feature_selection import SelectKBest, f_classif
 from scipy import stats
 import io
+import json
+import base64
+import zipfile
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestRegressor
 
 # App Configuration
 st.set_page_config(
     page_title="Advanced Data Analysis Toolkit",
     page_icon=":bar_chart:",
-    layout="wide",
+    layout="wide",    
     initial_sidebar_state="expanded"
 )
 
@@ -258,7 +265,334 @@ def select_features(df):
         st.write("Top Selected Features:")
         st.write(selected_features)
 
-# Main Streamlit App
+# Advanced analysis with corrected widget keys
+def advanced_analysis(df):
+    st.header("🔬 Advanced Data Analysis and Visualization")
+    
+    # Check if DataFrame is valid
+    if df is None or df.empty:
+        st.error("No data available for analysis. Please load a dataset first.")
+        return
+    
+    # Tabs for different analysis types
+    analysis_tabs = st.tabs([
+        "Statistical Summary", 
+        "Distribution Analysis", 
+        "Correlation & Clustering", 
+        "Advanced Visualizations", 
+        "Comparative Analysis"
+    ])
+    
+    # Get numeric and categorical columns
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    
+    # Statistical Summary Tab
+    with analysis_tabs[0]:
+        st.subheader("Comprehensive Statistical Insights")
+        
+        # Descriptive Statistics
+        st.write("Descriptive Statistics:")
+        desc_stats = df[numeric_cols].describe()
+        st.dataframe(desc_stats)
+        
+        # Skewness and Kurtosis
+        st.write("Distribution Characteristics:")
+        skew_kurt_df = pd.DataFrame({
+            'Column': numeric_cols,
+            'Skewness': [df[col].skew() for col in numeric_cols],
+            'Kurtosis': [df[col].kurtosis() for col in numeric_cols]
+        })
+        st.dataframe(skew_kurt_df)
+    
+    # Distribution Analysis Tab
+    with analysis_tabs[1]:
+        st.subheader("Distribution and Probability Analysis")
+        
+        # Ensure we have numeric columns
+        if not numeric_cols:
+            st.warning("No numeric columns available for distribution analysis.")
+        else:
+            # Distribution Plot Selection
+            distribution_type = st.selectbox(
+                "Choose Distribution Visualization", 
+                [
+                    "Kernel Density Estimation (KDE)", 
+                    "Histogram with Probability Density", 
+                    "Box Plot with Distribution",
+                    "Q-Q Plot for Normality"
+                ],
+                key="distribution_viz_type"
+            )
+            
+            # Numeric columns selection
+            selected_cols = st.multiselect(
+                "Select Columns for Analysis", 
+                numeric_cols,
+                key="distribution_cols"
+            )
+            
+            # Plotting based on selection
+            if selected_cols:
+                plt.figure(figsize=(12, 6))
+                
+                if distribution_type == "Kernel Density Estimation (KDE)":
+                    for col in selected_cols:
+                        sns.kdeplot(df[col], fill=True, label=col)
+                    plt.title("Kernel Density Estimation")
+                    plt.legend()
+                
+                elif distribution_type == "Histogram with Probability Density":
+                    for col in selected_cols:
+                        sns.histplot(df[col], kde=True, stat="density", label=col)
+                    plt.title("Histogram with Probability Density")
+                    plt.legend()
+                
+                elif distribution_type == "Box Plot with Distribution":
+                    sns.boxenplot(data=df[selected_cols])
+                    plt.title("Enhanced Box Plot")
+                    plt.xticks(rotation=45)
+                
+                elif distribution_type == "Q-Q Plot for Normality":
+                    fig, axes = plt.subplots(1, len(selected_cols), figsize=(15, 5))
+                    for i, col in enumerate(selected_cols):
+                        stats.probplot(df[col], dist="norm", plot=axes[i])
+                        axes[i].set_title(f"Q-Q Plot: {col}")
+                    plt.tight_layout()
+                
+                st.pyplot(plt)
+    
+    # Correlation & Clustering Tab
+    with analysis_tabs[2]:
+        st.subheader("Advanced Correlation and Clustering")
+        
+        # Correlation Analysis
+        correlation_method = st.selectbox(
+            "Correlation Method", 
+            ["Pearson", "Spearman", "Kendall"],
+            key="correlation_method_select"
+        )
+        
+        # Compute Correlation
+        if numeric_cols:
+            if correlation_method == "Pearson":
+                corr_matrix = df[numeric_cols].corr(method='pearson')
+            elif correlation_method == "Spearman":
+                corr_matrix = df[numeric_cols].corr(method='spearman')
+            else:
+                corr_matrix = df[numeric_cols].corr(method='kendall')
+            
+            # Correlation Visualization
+            plt.figure(figsize=(12, 10))
+            sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', linewidths=0.5, 
+                        center=0, square=True)
+            plt.title(f"{correlation_method} Correlation Heatmap")
+            st.pyplot(plt)
+        else:
+            st.warning("No numeric columns available for correlation analysis.")
+    
+    # Advanced Visualizations Tab
+    with analysis_tabs[3]:
+        st.subheader("Multi-dimensional Visualizations")
+        
+        if not numeric_cols:
+            st.warning("No numeric columns available for advanced visualizations.")
+        else:
+            # Advanced Visualization Types
+            viz_type = st.selectbox(
+                "Choose Advanced Visualization", 
+                [
+                    "t-SNE Visualization",
+                    "PCA Visualization"
+                ],
+                key="advanced_viz_type"
+            )
+            
+            # Prepare data
+            X = df[numeric_cols]
+            
+            if viz_type == "t-SNE Visualization":
+                tsne = TSNE(n_components=2, random_state=42)
+                X_tsne = tsne.fit_transform(X)
+                
+                # Create DataFrame for plotting
+                tsne_df = pd.DataFrame(X_tsne, columns=['TSNE1', 'TSNE2'])
+                
+                # Optional color mapping
+                color_option = st.selectbox(
+                    "Color by", 
+                    list(df.columns),
+                    key="tsne_color_option"
+                )
+                
+                plt.figure(figsize=(12, 8))
+                scatter = plt.scatter(
+                    tsne_df['TSNE1'], 
+                    tsne_df['TSNE2'], 
+                    c=df[color_option], 
+                    cmap='viridis'
+                )
+                plt.colorbar(scatter)
+                plt.title("t-SNE Visualization")
+                st.pyplot(plt)
+            
+            elif viz_type == "PCA Visualization":
+                # Prepare data
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                
+                # PCA
+                pca = PCA(n_components=2)
+                X_pca = pca.fit_transform(X_scaled)
+                
+                # Create DataFrame
+                pca_df = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
+                
+                # Color option
+                color_option = st.selectbox(
+                    "Color by", 
+                    list(df.columns),
+                    key="pca_color_option"
+                )
+                
+                plt.figure(figsize=(12, 8))
+                scatter = plt.scatter(
+                    pca_df['PC1'], 
+                    pca_df['PC2'], 
+                    c=df[color_option], 
+                    cmap='viridis'
+                )
+                plt.colorbar(scatter)
+                plt.title("PCA Visualization")
+                plt.xlabel(f"First Principal Component (Variance Explained: {pca.explained_variance_ratio_[0]*100:.2f}%)")
+                plt.ylabel(f"Second Principal Component (Variance Explained: {pca.explained_variance_ratio_[1]*100:.2f}%)")
+                st.pyplot(plt)
+    
+    # Comparative Analysis Tab
+    with analysis_tabs[4]:
+        st.subheader("Comparative and Segmentation Analysis")
+        
+        # Ensure we have both categorical and numeric columns
+        if not categorical_cols or not numeric_cols:
+            st.warning("Need both categorical and numeric columns for comparative analysis.")
+        else:
+            # Analysis type selection
+            analysis_type = st.selectbox(
+                "Choose Comparative Analysis", 
+                [
+                    "Grouped Statistical Comparison",
+                    "Feature Importance Ranking"
+                ],
+                key="comparative_analysis_type"
+            )
+            
+            if analysis_type == "Grouped Statistical Comparison":
+                # Group selection and comparison
+                group_col = st.selectbox(
+                    "Select Grouping Column", 
+                    categorical_cols,
+                    key="group_comparison_column"
+                )
+                compare_col = st.selectbox(
+                    "Select Comparison Column", 
+                    numeric_cols,
+                    key="compare_numeric_column"
+                )
+                
+                # Grouped box plot
+                plt.figure(figsize=(12, 6))
+                sns.boxplot(x=group_col, y=compare_col, data=df)
+                plt.title(f"{compare_col} Comparison by {group_col}")
+                plt.xticks(rotation=45)
+                st.pyplot(plt)
+            
+            elif analysis_type == "Feature Importance Ranking":
+                # Ensure we have enough numerical columns
+                if len(numeric_cols) < 2:
+                    st.warning("Need at least two numeric columns for feature importance.")
+                else:
+                    # Target column selection
+                    target_col = st.selectbox(
+                        "Select Target Column", 
+                        numeric_cols,
+                        key="feature_importance_target"
+                    )
+                    
+                    # Prepare features and target
+                    X = df.drop(columns=[target_col])
+                    y = df[target_col]
+                    
+                    # Train Random Forest
+                    rf = RandomForestRegressor(n_estimators=100)
+                    rf.fit(X, y)
+                    
+                    # Feature importance
+                    feature_importance = pd.DataFrame({
+                        'feature': X.columns,
+                        'importance': rf.feature_importances_
+                    }).sort_values('importance', ascending=False)
+                    
+                    # Plot feature importance
+                    plt.figure(figsize=(12, 6))
+                    sns.barplot(x='importance', y='feature', data=feature_importance)
+                    plt.title("Feature Importance Ranking")
+                    st.pyplot(plt)
+
+#Downloading..........
+
+def download_data(df):
+    """
+    Provides download options for the current dataframe
+    
+    Args:
+        df (pd.DataFrame): DataFrame to be downloaded
+    """
+    st.header("📥 Download Processed Data")
+    
+    # Choose file format
+    download_format = st.selectbox("Select Download Format", [
+        "CSV", 
+        "Excel", 
+        "JSON", 
+        "Parquet"
+    ])
+    
+    # Generate download
+    if st.button("Generate Download Link"):
+        try:
+            # Create a file in memory
+            if download_format == "CSV":
+                csv = df.to_csv(index=False)
+                file_ext = "csv"
+                mime_type = "text/csv"
+            elif download_format == "Excel":
+                excel_buffer = io.BytesIO()
+                df.to_excel(excel_buffer, index=False)
+                excel_buffer.seek(0)
+                csv = excel_buffer.getvalue()
+                file_ext = "xlsx"
+                mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            elif download_format == "JSON":
+                csv = df.to_json(orient='records')
+                file_ext = "json"
+                mime_type = "application/json"
+            elif download_format == "Parquet":
+                parquet_buffer = io.BytesIO()
+                df.to_parquet(parquet_buffer, index=False)
+                parquet_buffer.seek(0)
+                csv = parquet_buffer.getvalue()
+                file_ext = "parquet"
+                mime_type = "application/octet-stream"
+            
+            # Create download link
+            b64 = base64.b64encode(csv.encode()).decode()
+            href = f'<a href="data:{mime_type};base64,{b64}" download="processed_data.{file_ext}">Download {download_format} File</a>'
+            st.markdown(href, unsafe_allow_html=True)
+        
+        except Exception as e:
+            st.error(f"Error generating download: {e}")
+
+# Modify the main function to remove the previous advanced_analysis call
 def main():
     st.title("🚀 Advanced Data Analysis Toolkit")
     
@@ -268,7 +602,8 @@ def main():
         "Data Exploration", 
         "Data Preprocessing", 
         "Feature Engineering", 
-        "Advanced Analysis"
+        "Advanced Analysis",
+        "Data Download"
     ])
     
     # Data Loading
@@ -330,16 +665,25 @@ def main():
             
             if feature_option == "Feature Scaling":
                 df = feature_scaling(df)
+                st.session_state.df = df
             elif feature_option == "Feature Selection":
                 select_features(df)
-            
-            st.session_state.df = df
         else:
             st.error("Please load data first.")
     
     # Advanced Analysis
     elif app_mode == "Advanced Analysis":
-        st.write("Coming soon...")
+        if st.session_state.df is not None:
+            advanced_analysis(st.session_state.df)
+        else:
+            st.error("Please load and preprocess data first.")
+    # Download Option
+    elif app_mode == "Data Download":
+        if st.session_state.df is not None:
+            download_data(st.session_state.df)
+        else:
+            st.error("Please load and process data first.")
+
 
 if __name__ == "__main__":
     main()
