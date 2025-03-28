@@ -121,7 +121,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## 📬 Contact
 Your Name - yaseenmohammadap37@gmail.com
 
-Project Link: [https://github.com/yaseen2444/Insight-Forge.git](https://github.com/yaseen2444/Insight-Forge.git)
+Project_Live_Demo_Link: [https://insight-forgegit-4txxnzwvwzwnmskqkwxaky.streamlit.app/](https://insight-forgegit-4txxnzwvwzwnmskqkwxaky.streamlit.app/)
 
 ---
 
