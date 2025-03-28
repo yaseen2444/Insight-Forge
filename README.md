@@ -119,7 +119,7 @@ scipy
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📬 Contact
-Your Name - yaseenmohammadap37@gmail.com
+My mail - yaseenmohammadap37@gmail.com
 
 Project_Live_Demo_Link: [https://insight-forgegit-4txxnzwvwzwnmskqkwxaky.streamlit.app/](https://insight-forgegit-4txxnzwvwzwnmskqkwxaky.streamlit.app/)
 
